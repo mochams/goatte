@@ -92,7 +92,7 @@ func TestReverseSimpleUrl(t *testing.T) {
 	}{
 		{
 			title: "test parses simple path",
-			name:  ":user-create",
+			name:  "user-create",
 			want:  "/users/",
 		},
 	}
@@ -294,7 +294,7 @@ func TestRouteHandlers_GET(t *testing.T) {
 			}
 
 			router.Get("/", "test-detail", handler)
-			req := httptest.NewRequest(tt.method, "http://example.com/foo", nil)
+			req := httptest.NewRequest(tt.method, "/", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			res := w.Result()
@@ -339,7 +339,7 @@ func TestRouteHandlers_POST(t *testing.T) {
 			}
 
 			router.Post("/", "test-detail", handler)
-			req := httptest.NewRequest(tt.method, "http://example.com/foo", nil)
+			req := httptest.NewRequest(tt.method, "/", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			res := w.Result()
@@ -384,7 +384,7 @@ func TestRouteHandlers_PUT(t *testing.T) {
 			}
 
 			router.Put("/", "test-detail", handler)
-			req := httptest.NewRequest(tt.method, "http://example.com/foo", nil)
+			req := httptest.NewRequest(tt.method, "/", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			res := w.Result()
@@ -429,7 +429,7 @@ func TestRouteHandlers_PATCH(t *testing.T) {
 			}
 
 			router.Patch("/", "test-detail", handler)
-			req := httptest.NewRequest(tt.method, "http://example.com/foo", nil)
+			req := httptest.NewRequest(tt.method, "/", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			res := w.Result()
@@ -474,7 +474,7 @@ func TestRouteHandlers_DELETE(t *testing.T) {
 			}
 
 			router.Delete("/", "test-detail", handler)
-			req := httptest.NewRequest(tt.method, "http://example.com/foo", nil)
+			req := httptest.NewRequest(tt.method, "/", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			res := w.Result()
@@ -519,7 +519,7 @@ func TestRouteHandlers_OPTIONS(t *testing.T) {
 			}
 
 			router.Options("/", "test-detail", handler)
-			req := httptest.NewRequest(tt.method, "http://example.com/foo", nil)
+			req := httptest.NewRequest(tt.method, "/", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			res := w.Result()
@@ -564,7 +564,7 @@ func TestRouteHandlers_HEAD(t *testing.T) {
 			}
 
 			router.Head("/", "test-detail", handler)
-			req := httptest.NewRequest(tt.method, "http://example.com/foo", nil)
+			req := httptest.NewRequest(tt.method, "/", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			res := w.Result()
@@ -585,44 +585,8 @@ type TestView struct {
 	called bool
 }
 
-// Implementing the Head method
-func (v *TestView) Head(w http.ResponseWriter, r *http.Request) {
-	v.called = true
-	w.WriteHeader(http.StatusOK)
-}
-
-// Implementing the Options method
-func (v *TestView) Options(w http.ResponseWriter, r *http.Request) {
-	v.called = true
-	w.WriteHeader(http.StatusOK)
-}
-
-// Implementing the Delete method
-func (v *TestView) Delete(w http.ResponseWriter, r *http.Request) {
-	v.called = true
-	w.WriteHeader(http.StatusOK)
-}
-
-// Implementing the Get method
-func (v *TestView) Get(w http.ResponseWriter, r *http.Request) {
-	v.called = true
-	w.WriteHeader(http.StatusOK)
-}
-
-// Implementing the Patch method
-func (v *TestView) Patch(w http.ResponseWriter, r *http.Request) {
-	v.called = true
-	w.WriteHeader(http.StatusOK)
-}
-
-// Implementing the Post method
-func (v *TestView) Post(w http.ResponseWriter, r *http.Request) {
-	v.called = true
-	w.WriteHeader(http.StatusOK)
-}
-
-// Implementing the Post method
-func (v *TestView) Put(w http.ResponseWriter, r *http.Request) {
+// Implementing the Dispatch method
+func (v *TestView) Dispatch(w http.ResponseWriter, r *http.Request) {
 	v.called = true
 	w.WriteHeader(http.StatusOK)
 }
@@ -677,7 +641,7 @@ func TestRouter_Register(t *testing.T) {
 			view := &TestView{called: false}
 
 			router.Register("/", "test-detail", view)
-			req := httptest.NewRequest(tt.method, "http://example.com/foo", nil)
+			req := httptest.NewRequest(tt.method, "/", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			res := w.Result()
@@ -773,7 +737,7 @@ func TestRouter_Route(t *testing.T) {
 			}
 
 			router.Route(tt.method, "/", "test-detail", handler)
-			req := httptest.NewRequest(tt.method, "http://example.com/foo", nil)
+			req := httptest.NewRequest(tt.method, "/", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			res := w.Result()
@@ -809,4 +773,58 @@ func TestRouter_Route_Panic(t *testing.T) {
 	}()
 
 	router.Route("GET", "", "test-detail", handler)
+}
+
+func TestRouter_Handle(t *testing.T) {
+	tests := []struct {
+		title    string
+		path     string
+		method   string
+		expected int
+	}{
+		{
+			title:    "test handle /",
+			path:     "/",
+			method:   "POST",
+			expected: 200,
+		},
+		{
+			title:    "test handle /test",
+			path:     "/test",
+			method:   "POST",
+			expected: 200,
+		},
+		{
+			title:    "test handle /panel",
+			path:     "/panel",
+			method:   "POST",
+			expected: 200,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			router := NewRouter("test")
+			called := false
+
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				called = true
+				w.WriteHeader(http.StatusOK)
+			}
+
+			router.Handle(tt.path, "test-detail", handler)
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			res := w.Result()
+
+			if !called {
+				t.Error("handler was not called")
+			}
+
+			if res.StatusCode != tt.expected {
+				t.Errorf("expected 200 OK, got %d", res.StatusCode)
+			}
+		})
+	}
 }

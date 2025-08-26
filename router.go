@@ -19,6 +19,9 @@ var routeRegistry = make(map[string]string)
 // "/users/{name}/".
 var pathParamRegex = regexp.MustCompile(`\{(\w+)\}`)
 
+// MethodAll is used to indicate method-agnostic routing (matches MethodAll HTTP methods)
+const MethodAll = "ALL"
+
 // NewRouter creates a new Router with a namespace and optional middleware.
 // The namespace (e.g., "api" or "web") helps organize routes and acts as path prefix.
 // Middleware functions are applied to all routes in this router.
@@ -51,6 +54,12 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 //   router.Delete("/users/{id}", "delete-user", func(w http.ResponseWriter, r *http.Request) {
 //       w.Write([]byte("User deleted"))
 //   })
+
+// Method-agnostic handler
+// Handles request for any method
+func (r *Router) Handle(path, name string, handler http.HandlerFunc) {
+	r.Route(MethodAll, path, name, handler)
+}
 
 // Head adds a handler for HTTP HEAD requests to the given path.
 func (r *Router) Head(path, name string, handler http.HandlerFunc) {
@@ -88,7 +97,7 @@ func (r *Router) Put(path, name string, handler http.HandlerFunc) {
 }
 
 //
-// Router Utilities
+// Router utilities
 //
 
 // Include attaches another Router at the specified prefix, applying the parent router’s
@@ -134,18 +143,12 @@ func (r *Router) Files(prefix string, dirname string) {
 // Example:
 //
 //	type MyView struct {}
-//	func (v MyView) Get(w http.ResponseWriter, r *http.Request) {
+//	func (v MyView) Dispatch(w http.ResponseWriter, r *http.Request) {
 //	    w.Write([]byte("Users list"))
 //	}
 //	router.Register("/users/", "users", MyView{})
 func (r *Router) Register(path string, name string, view View) {
-	r.Head(path, name, view.Head)
-	r.Options(path, name, view.Options)
-	r.Delete(path, name, view.Delete)
-	r.Get(path, name, view.Get)
-	r.Patch(path, name, view.Patch)
-	r.Post(path, name, view.Post)
-	r.Put(path, name, view.Put)
+	r.Handle(path, name, view.Dispatch)
 }
 
 // Route registers the given method + path to a handler with middleware applied.
@@ -158,16 +161,23 @@ func (r *Router) Route(method, path, name string, handler http.HandlerFunc) {
 		panic("router: path cannot be empty")
 	}
 
-	fullPath := path
-	if r.namespace != "" {
-		fullPath = "/" + r.namespace + path
+	pattern := method + " " + path
+	if method == MethodAll {
+		pattern = path
 	}
-	routeRegistry[r.namespace+":"+name] = fullPath
 
 	r.mux.Handle(
-		method+" "+path,
+		pattern,
 		ApplyMiddleware(handler, r.middlewareFuncs...),
 	)
+
+	registryPath := path
+	registryKey := name
+	if r.namespace != "" {
+		registryPath = "/" + r.namespace + path
+		registryKey = r.namespace + ":" + name
+	}
+	routeRegistry[registryKey] = registryPath
 }
 
 //
@@ -249,4 +259,26 @@ func ReverseUrl(name string, paramStr string) (string, error) {
 //	// Returns "/users/" if registered
 func ReverseUrlSimple(name string) (string, error) {
 	return ReverseUrl(name, "")
+}
+
+//
+// Type definitions
+//
+
+// Router handles HTTP requests by mapping URLs to functions. It supports middleware,
+// namespaces for organizing routes, and mounting sub-routers under prefixes.
+type Router struct {
+	mux             *http.ServeMux
+	middlewareFuncs []Middleware
+	namespace       string
+}
+
+// Middleware is a function that adds extra features to a request handler, like
+// logging requests.
+type Middleware func(http.HandlerFunc) http.HandlerFunc
+
+// View is an interface for handling multiple HTTP methods (like GET or POST) for a
+// single URL pattern. Implement this to define how a URL responds to different request types.
+type View interface {
+	Dispatch(w http.ResponseWriter, r *http.Request)
 }
